@@ -1,0 +1,115 @@
+# install.packages("reticulate")
+library(reticulate)
+library(Seurat)
+library(anndata)
+library(dplyr)
+library(tidyverse)
+library(viridis)
+cluster <- 'cd4_t_cells'
+
+path <- "/storage1/fs1/martyomov/Active/collaborations/greg_brian/greg_wu/romans/csf_atlas_new/"
+setwd(paste0(path, cluster, '/no_duplicates_new_2/'))
+
+# upload raw h5ad obj
+adata <- read_h5ad(paste0(cluster, "_raw.h5ad"))
+# 1.create seurat obj with raw counts
+seurat_data <- CreateSeuratObject(counts = t(as.matrix(adata$X)),      
+                                  meta.data = adata$obs)
+# check raw counts
+seurat_data@assays$RNA@counts %>% max()
+
+### !!! optional: replace cDC2_2 to cDC2.2
+# seurat_data$cell_type <- sub("^(cDC2_2).*", "cDC2.2", seurat_data$cell_type)
+# ### !!! optional: filter out Neutrophils
+# seurat_data@meta.data <- seurat_data@meta.data %>% 
+#   filter(!(cell_type == 'Neutrophil'))
+
+# 2.create pseudobulk
+pbulk <- AggregateExpression(
+  object = seurat_data,
+  assays = 'RNA',
+  features = NULL,
+  return.seurat = TRUE,
+  group.by = c('cell_type', 'organ', 'sample'),
+  add.ident = NULL,              
+  slot = "counts",
+  verbose = TRUE)
+
+levels(pbulk)
+Idents(pbulk)
+
+# pbulk@meta.data %>% View()
+pbulk$RNA@counts %>% max()
+pbulk$RNA@data %>% max()
+
+# 3.normilize (for DE)
+pbulk <- NormalizeData(pbulk,
+                       normalization.method = "LogNormalize",
+                       scale.factor = 10000)
+
+# 4.scale (for heatmap)
+all.genes <- rownames(pbulk)
+pbulk <- ScaleData(pbulk, features = all.genes)
+
+# pbulk@assays$RNA@scale.data[1:10, 1:10]
+pbulk@meta.data$cell_type.organ.sample <- rownames(pbulk@meta.data)
+pbulk@meta.data$cell_type.organ <- sapply(pbulk@meta.data$cell_type.organ.sample,
+                                          function(x) {str_extract(x, "[^_]*_[^_]*")})        # gsub("_[^_]+$", "\\1", x)
+
+# 5.reassign Idents to "cell_type.organ" (for DE: comparation)
+Idents(pbulk) <- pbulk[['cell_type.organ']]
+levels(pbulk)
+
+### !!! optional: fix the order of labels
+# levels(pbulk) <- c("HLA-DR+_CSF", "HLA-DR+_PBMC", "MAIT CD8+_CSF", "MAIT CD8+_PBMC",
+#                    "Naïve-IFN_CSF",  "Naïve-IFN_PBMC", "NKT-like_CSF", "NKT-like_PBMC",
+#                    "Tem GZMB+_CSF",  "Tem GZMB+_PBMC", "Tem GZMK+_CSF",  "Tem GZMK+_PBMC")
+
+# levels(pbulk) <- c("CD56bright_CSF", "CD56bright_PBMC", "CD56dim CD57-_CSF", "CD56dim CD57-_PBMC",
+#                    "NCR1+ ILC3s_CSF", "NCR1+ ILC3s_PBMC", "Proliferating NK_CSF", "Proliferating NK_PBMC")
+
+# levels(pbulk) <- c('Activated_CSF', 'Activated_PBMC', 'Atypical mem_CSF', 'Atypical mem_PBMC',
+#                                  'Naïve_CSF', 'Naïve_PBMC', 'Plasmablasts_CSF', 'Plasmablasts_PBMC', 
+#                                  'Switched mem_CSF', 'Switched mem_PBMC', 'Transitional_CSF', 'Transitional_PBMC')
+
+# 6.DE
+# for MAST only (Bug): rename cell names
+cnames <- paste0('test_', rownames(pbulk@meta.data))
+pbulk <- RenameCells(pbulk, new.names = cnames)
+
+pbulk.markers <- FindAllMarkers(pbulk, 
+                                 test.use = "MAST",         # default
+                                 slot = "data",               # default
+                                 only.pos = TRUE,
+                                 min.pct = 0.1,
+                                 logfc.threshold = 0.25)
+
+pbulk.markers %>% View()
+
+# 7.create 2 separate colms: cell_type & organ (for Phantasus/pheatmap)
+pbulk.markers.new <- pbulk.markers %>% 
+  mutate(organ = ifelse(grepl('PBMC', cluster), 'PBMC', 'CSF')) %>% 
+  mutate(cell_type = sapply(cluster, function(x) {gsub("_.*", "", x)}))
+
+pbulk.markers.new %>%
+  group_by(organ, cell_type) %>%
+  slice_max(n = 2, order_by = avg_log2FC)
+
+# 8.select top 5 from each group
+top5 <- pbulk.markers.new %>%
+  group_by(organ, cell_type) %>%
+  top_n(n = 5, wt = avg_log2FC)
+
+# 9.plot heatmap
+DoHeatmap(pbulk, 
+          features = top5$gene,
+          group.by = "cell_type.organ",
+          angle = 45) +
+  scale_fill_viridis(option = 'inferno') +                    # option = 'inferno'
+  guides(color = FALSE)                     # hide cell_type legend
+                                            # theme(text = element_text(size = 10))
+  
+ggsave(paste0("/storage1/fs1/martyomov/Active/collaborations/greg_brian/greg_wu/romans/figures/cd4/pbulk_DE_5_MAST.png"),
+       width = 20,    #12
+       height = 12,    #6
+       dpi = 300)
