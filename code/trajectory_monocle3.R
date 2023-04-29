@@ -112,7 +112,3 @@ ggsave(paste0("~/Downloads/MD_proj/neuro_proj/results/figures/trajectory/micro_p
        width = 10,    #10
        height = 7,    #7
        dpi = 300)
-
-
-
-
