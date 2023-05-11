@@ -1,0 +1,164 @@
+install.packages("reticulate")
+library(reticulate)
+library(Seurat)
+library(anndata)
+library(dplyr)
+library(tidyverse)
+library(viridis)
+cluster <- 'nk_cells'
+
+path <- "/storage1/fs1/martyomov/Active/collaborations/greg_brian/greg_wu/romans/csf_atlas_new/"
+setwd(paste0(path, cluster, '/no_duplicates_new/'))
+
+# upload raw h5ad obj
+adata <- read_h5ad(paste0(cluster, "_raw.h5ad"))
+# 1.create seurat obj with raw counts
+seurat_data <- CreateSeuratObject(counts = t(as.matrix(adata$X)),      
+                                  meta.data = adata$obs)
+# check raw counts
+seurat_data@assays$RNA@counts %>% max()
+
+# ## !!! optional: replace cDC2_2 to cDC2.2
+# seurat_data$cell_type <- sub("^(cDC2_2).*", "cDC2.2", seurat_data$cell_type)
+# ### !!! optional: filter out Neutrophils
+# seurat_data@meta.data <- seurat_data@meta.data %>%
+#   filter(!(cell_type == 'Neutrophil'))
+
+# 2.create pseudobulk
+pbulk <- AggregateExpression(
+  object = seurat_data,
+  assays = 'RNA',
+  features = NULL,
+  return.seurat = TRUE,
+  group.by = c('cell_type', 'organ', 'sample'),
+  add.ident = NULL,              
+  slot = "counts",
+  verbose = TRUE)
+
+levels(pbulk)
+Idents(pbulk)
+
+# pbulk@meta.data %>% View()
+pbulk$RNA@counts %>% max()
+pbulk$RNA@data %>% max()
+
+# 3.normilize (for DE)
+pbulk <- NormalizeData(pbulk,
+                       normalization.method = "LogNormalize",
+                       scale.factor = 10000)
+
+# 4.scale (for heatmap)
+all.genes <- rownames(pbulk)
+pbulk <- ScaleData(pbulk, features = all.genes)
+
+# pbulk@assays$RNA@scale.data[1:10, 1:10]
+pbulk@meta.data$cell_type.organ.sample <- rownames(pbulk@meta.data)
+pbulk@meta.data$cell_type.organ <- sapply(pbulk@meta.data$cell_type.organ.sample,
+                                          function(x) {str_extract(x, "[^_]*_[^_]*")})        # gsub("_[^_]+$", "\\1", x)
+
+# 5.reassign Idents to "cell_type.organ" (for DE: comparation)
+Idents(pbulk) <- pbulk[['cell_type.organ']]
+levels(pbulk)
+
+# 6. optional: fix order of heatmap markers
+levels(pbulk) <- c("CD56bright_CSF", "CD56bright_PBMC", "CD56dim CD57-_CSF", "CD56dim CD57-_PBMC",
+                   "NCR1+ ILC3s_CSF", "NCR1+ ILC3s_PBMC", "Proliferating NK_CSF", "Proliferating NK_PBMC")
+# 6.DE
+# for MAST only (Bug): rename cell names
+cnames <- paste0('test_', rownames(pbulk@meta.data))
+pbulk <- RenameCells(pbulk, new.names = cnames)
+
+pbulk.markers <- FindAllMarkers(pbulk, 
+                                test.use = "MAST",         # default
+                                slot = "data",               # default
+                                only.pos = TRUE,
+                                min.pct = 0.1,
+                                logfc.threshold = 0.25)
+
+# pbulk.markers %>% View()
+
+# 7.create 2 separate colms: cell_type & organ (for Phantasus/pheatmap)
+pbulk.markers.new <- pbulk.markers %>% 
+  mutate(organ = ifelse(grepl('PBMC', cluster), 'PBMC', 'CSF')) %>% 
+  mutate(cell_type = sapply(cluster, function(x) {gsub("_.*", "", x)}))
+
+pbulk.markers.new %>%
+  group_by(organ, cell_type) %>%
+  slice_max(n = 2, order_by = avg_log2FC)
+
+# 8.select top 5 from each group
+top5 <- pbulk.markers.new %>%
+  group_by(organ, cell_type) %>%
+  top_n(n = 5, wt = avg_log2FC)
+
+# 9.plot heatmap
+DoHeatmap(pbulk, 
+          features = top5$gene,
+          group.by = "cell_type.organ",
+          angle = 45) +
+  scale_fill_viridis(option = 'inferno') +                    # option = 'inferno'
+  guides(color = FALSE)   
+
+# -------------------------------pheatmap-------------------------------------------------------------------
+library(devtools)
+install_github("jokergoo/ComplexHeatmap")
+library(ComplexHeatmap)
+library(pheatmap)
+
+pbulk@assays$RNA@data[1:5, 1:5]
+
+df <- as.data.frame(pbulk@assays$RNA@data)
+df %>% View
+
+pheatmap(df, show_colnames = F, 
+         cluster_rows = F, cluster_cols = F)
+#---------------------------------------------
+# extract matrix of expression values from seurat data object, select rows that
+# correspond to marker genes
+DefaultAssay(pbulk) = "RNA"
+datamat = pbulk$RNA@data[which(rownames(pbulk) %in% top5$gene), ]       #scale.data
+
+datamat = datamat[match(top5$gene, rownames(datamat)), ]
+datamat = datamat[, order(pbulk$cell_type.organ)]
+markertype = paste0(top5$cluster, " markers")
+celltype = pbulk$cell_type.organ
+celltype = celltype[order(pbulk$cell_type.organ)]
+
+# # take only every cell in data matrix to display, to create smaller pdf file
+# if (filter_every_tenth_gene) {
+#   celltype = celltype[seq(1, dim(datamat)[2], 10)]
+#   datamat = datamat[, seq(1, dim(datamat)[2], 10)]
+# }
+
+annotation_col = data.frame(celltype = factor(celltype))      # 551 cell_type.organ labels with samples coordinates
+rownames(annotation_col) = colnames(datamat)
+
+# some marker genes may be repeated within data matrix for repeat genes, add
+# number at end to distinguish repeats
+labels_row = rownames(datamat)             # 40 marker genes
+
+annotation_row = data.frame(markertype = factor(markertype))
+uniquegenenames = unique(rownames(datamat))
+for (i in 1:length(uniquegenenames)) {
+  if (sum(rownames(datamat) == uniquegenenames[i]) > 1) {
+    matchidxs = which(rownames(datamat) == uniquegenenames[i])
+    for (j in 1:length(matchidxs)) {
+      rownames(datamat)[matchidxs[j]] = paste0(rownames(datamat)[matchidxs[j]], 
+                                               "_", j)
+    }
+  }
+}
+rownames(annotation_row) = rownames(datamat)
+
+# clip heatmap values to plus or minus 2.5, to ensure that color contrast is high
+datamat[datamat <= -2.5] = -2.5
+datamat[datamat >= 2.5] = 2.5
+
+pheatmap(datamat, 
+         color = inferno(100), 
+         annotation_col = annotation_col,
+         annotation_row = annotation_row, 
+         labels_row = labels_row,
+         show_colnames = F, cluster_rows = F, cluster_cols = F,
+         annotation_legend = F
+         )
