@@ -97,11 +97,11 @@ DoHeatmap(pbulk,
           group.by = "cell_type.organ",
           angle = 45) +
   scale_fill_viridis(option = 'inferno') +                    # option = 'inferno'
-  guides(color = FALSE)   
+  guides(color = FALSE) 
 
 # -------------------------------pheatmap-------------------------------------------------------------------
-library(devtools)
-install_github("jokergoo/ComplexHeatmap")
+# library(devtools)
+# install_github("jokergoo/ComplexHeatmap", force = TRUE)
 library(ComplexHeatmap)
 library(pheatmap)
 
@@ -116,11 +116,11 @@ pheatmap(df, show_colnames = F,
 # extract matrix of expression values from seurat data object, select rows that
 # correspond to marker genes
 DefaultAssay(pbulk) = "RNA"
-datamat = pbulk$RNA@data[which(rownames(pbulk) %in% top5$gene), ]       #scale.data
+datamat = pbulk$RNA@scale.data[which(rownames(pbulk) %in% top5$gene), ]       #scale.data
 
 datamat = datamat[match(top5$gene, rownames(datamat)), ]
 datamat = datamat[, order(pbulk$cell_type.organ)]
-markertype = paste0(top5$cluster, " markers")
+# markertype = paste0(top5$cluster, " markers")
 celltype = pbulk$cell_type.organ
 celltype = celltype[order(pbulk$cell_type.organ)]
 
@@ -130,35 +130,46 @@ celltype = celltype[order(pbulk$cell_type.organ)]
 #   datamat = datamat[, seq(1, dim(datamat)[2], 10)]
 # }
 
-annotation_col = data.frame(celltype = factor(celltype))      # 551 cell_type.organ labels with samples coordinates
+annotation_col = data.frame(cell_type_organ = factor(celltype))      # 551 cell_type.organ labels with samples coordinates
 rownames(annotation_col) = colnames(datamat)
+
+# 7.create 2 separate colms: cell_type & organ (for Phantasus/pheatmap)
+annotation_col <- annotation_col %>% 
+  mutate(cell_type = sapply(cell_type_organ, function(x) {gsub("_.*", "", x)})) %>% 
+  mutate(organ = ifelse(grepl('PBMC', cell_type_organ), 'PBMC', 'CSF')) %>% 
+  select(cell_type, organ)
+
 
 # some marker genes may be repeated within data matrix for repeat genes, add
 # number at end to distinguish repeats
-labels_row = rownames(datamat)             # 40 marker genes
+# labels_row = rownames(datamat)             # 40 marker genes
 
-annotation_row = data.frame(markertype = factor(markertype))
-uniquegenenames = unique(rownames(datamat))
-for (i in 1:length(uniquegenenames)) {
-  if (sum(rownames(datamat) == uniquegenenames[i]) > 1) {
-    matchidxs = which(rownames(datamat) == uniquegenenames[i])
-    for (j in 1:length(matchidxs)) {
-      rownames(datamat)[matchidxs[j]] = paste0(rownames(datamat)[matchidxs[j]], 
-                                               "_", j)
-    }
-  }
-}
-rownames(annotation_row) = rownames(datamat)
+# annotation_row = data.frame(markertype = factor(markertype))
+# uniquegenenames = unique(rownames(datamat))
+# for (i in 1:length(uniquegenenames)) {
+#   if (sum(rownames(datamat) == uniquegenenames[i]) > 1) {
+#     matchidxs = which(rownames(datamat) == uniquegenenames[i])
+#     for (j in 1:length(matchidxs)) {
+#       rownames(datamat)[matchidxs[j]] = paste0(rownames(datamat)[matchidxs[j]],
+#                                                "_", j)
+#     }
+#   }
+# }
+# rownames(annotation_row) = rownames(datamat)
 
 # clip heatmap values to plus or minus 2.5, to ensure that color contrast is high
-datamat[datamat <= -2.5] = -2.5
-datamat[datamat >= 2.5] = 2.5
+datamat[datamat <= -2.3] = -2.3
+datamat[datamat >= 2.3] = 2.3
 
+# specify the same pallete as the default in Doheatmap (seurat)
 pheatmap(datamat, 
          color = inferno(100), 
          annotation_col = annotation_col,
-         annotation_row = annotation_row, 
-         labels_row = labels_row,
+         # annotation_row = annotation_row,
+         # labels_row = labels_row,
          show_colnames = F, cluster_rows = F, cluster_cols = F,
-         annotation_legend = F
+         annotation_legend = T, gaps_col = F
          )
+
+
+
