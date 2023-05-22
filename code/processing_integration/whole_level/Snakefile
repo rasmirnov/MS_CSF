@@ -1,0 +1,22 @@
+configfile: 'config.yaml'
+
+datasets = {
+  "GSE127969": '/storage1/fs1/martyomov/Active/collaborations/greg_brian/greg_wu/data/GSE127969/object.RData',
+  "GSE141578":  '/storage1/fs1/martyomov/Active/collaborations/greg_brian/greg_wu/data/GSE141578/object.RData',
+  "GSE117397":  '/storage1/fs1/martyomov/Active/collaborations/greg_brian/greg_wu/data/GSE117397/object.RData',
+  "GSE138266":  '/storage1/fs1/martyomov/Active/collaborations/greg_brian/greg_wu/data/GSE138266/object.RData',
+  "GSE134577": '/storage1/fs1/martyomov/Active/collaborations/greg_brian/greg_wu/data/GSE134577/object.RData',
+  "GSE133028": '/storage1/fs1/martyomov/Active/collaborations/greg_brian/greg_wu/data/GSE133028/object.RData',
+  "GSE163005": '/storage1/fs1/martyomov/Active/collaborations/greg_brian/greg_wu/data/GSE163005/object.RData',
+  "all_ris": '/storage1/fs1/martyomov/Active/collaborations/greg_brian/greg_wu/data/all_ris/out/csf_tabula_ris_samples_Ierijuu6/object.RData',
+  "dbgap": "/storage1/fs1/martyomov/Active/collaborations/greg_brian/greg_wu/data/dbgap/output/object.RData"
+}
+
+include: 'rules/integration.smk'
+include: 'rules/b_cells.smk'
+include: 'rules/myeloid_cells.smk'
+include: 'rules/nk_cells.smk'
+include: 'rules/t_cells.smk'
+
+rule all:
+     input: directory("/storage1/fs1/martyomov/Active/collaborations/greg_brian/greg_wu/csf_atlas/output/microglia/microglia_joh5Iep2/microglia_joh5Iep2"), directory("/storage1/fs1/martyomov/Active/collaborations/greg_brian/greg_wu/csf_atlas/output/microglia/microglia_ein8rohR/microglia_ein8rohR"), directory("/storage1/fs1/martyomov/Active/collaborations/greg_brian/greg_wu/csf_atlas/output/cd8_dn_t_cells/cd8_dn_t_cells_uiSae8ee/cd8_dn_t_cells_uiSae8ee"), directory("/storage1/fs1/martyomov/Active/collaborations/greg_brian/greg_wu/csf_atlas/output/cd4_t_cells/cd4_t_cells_uiSae8ee/cd4_t_cells_uiSae8ee")

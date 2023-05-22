@@ -1,0 +1,4 @@
+include: "rules/analysis.smk"
+
+rule all:
+    input: "out/csf_tabula_ris_samples_Ierijuu6/object.RData"
