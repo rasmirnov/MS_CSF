@@ -96,7 +96,7 @@ add_root(
 )
 # -----------------------------------------------------------------------------
 
-# 5. plot
+# 5.1 plot TI
 plot_dimred(model,
             dimred = as.matrix(seurat_data@reductions$umap@cell.embeddings),
             expression_source = dataset$expression,     # normilized
@@ -106,6 +106,20 @@ plot_dimred(model,
             size_cells = 1,
             label_milestones = F,
             hex_cells = F)
+
+# 5.2 plot Pseudotime
+patchwork::wrap_plots(
+  plot_dimred(model, 
+              dimred = as.matrix(seurat_data@reductions$umap@cell.embeddings),
+              "pseudotime", 
+              pseudotime = calculate_pseudotime(model),
+              alpha_cells = 0.7,
+              size_cells = 1,
+              label_milestones = F,
+              hex_cells = F) + 
+    ggtitle("Pseudotime")
+)
+
 # 6. save
 ggsave("~/Downloads/MD_proj/neuro_proj/results/figures/by_object/micro/trajectory/micro_bam_cd14_csf/pdf/slingshot.pdf",
        width = 9,    #10
