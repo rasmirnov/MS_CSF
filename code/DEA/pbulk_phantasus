@@ -113,3 +113,44 @@ ggsave(paste0("/storage1/fs1/martyomov/Active/collaborations/greg_brian/greg_wu/
        width = 20,    #12
        height = 12,    #6
        dpi = 300)
+
+#---------------------------------PHANTASUS------------------------------------------------------
+# PHANTASUS: FILE PREP:
+pbulk <- readRDS('pbulk/pbulk_donors.rds')
+pbulk@assays$RNA@counts %>% dim()
+
+pbulk_df <- as.data.frame(pbulk@assays$RNA@counts)
+
+# 1. upload DEA df
+deg <- read.csv('pbulk/markers_by_donors.csv')
+
+pbulk_df_filtered <- pbulk_df[rownames(pbulk_df) %in% deg$gene, ]
+
+# 2. delete useless columns from deg df
+rownames(deg) <- deg$gene
+deg <- deg[, -c(3, 4, 6, 7)]
+
+# 3. combine pbulk_df_filtered & deg dataframe by genes
+merged = merge(pbulk_df_filtered, deg, 
+               by='row.names', all = T)
+
+# 4. add Cell types
+cell_type <- sapply(colnames(merged),
+                    function(x) {str_extract(x, "[^_]*")})
+merged <- rbind(cell_type, merged)
+rownames(merged)[1]<-"Cell_type"  
+
+# 5. add Donors
+donors <- sapply(colnames(merged),
+                 function(x) {str_extract(x, "[^_]+$")})
+merged <- rbind(donors, merged)
+rownames(merged)[1]<-"Donors"  
+
+# 6. rename 1st two rows:
+colnames(merged)[1]<-"Gene_symbol"
+merged[1, 1] <- 'Donors'
+merged[2, 1] <- 'Cell_type'
+rownames(merged) <- merged[, 1]
+
+# 7. save
+write.csv(merged, 'pbulk/exp_matrix.csv')
