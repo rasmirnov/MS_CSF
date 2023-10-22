@@ -18,7 +18,7 @@ adata <- meta
 
 # leave only HC & MS for comparation
 adata_meta <- adata %>% 
-  filter(disease_group_comb == c('control', 'MS', 'ND', 'OID'))   # 'control', 'MS', 'ND', 'infectious', 'OID'
+  filter(disease_group_comb %in% c('control', 'MS', 'ND', 'OID'))   # 'control', 'MS', 'ND', 'infectious', 'OID'
 
 # # # # remove useless cell types 
 # adata_meta <- adata_meta %>%
