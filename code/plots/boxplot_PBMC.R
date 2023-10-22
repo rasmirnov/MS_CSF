@@ -16,11 +16,11 @@ adata_meta <- meta
 #--------------------------------------------filtering------------------------------------------------------------
 #  subset by organ
 adata_meta_PBMC <- adata_meta %>% 
-  filter(organ == 'PBMC')
+  filter(organ %in% 'PBMC')
 
 # leave only HC & MS for comparation
 adata_meta_PBMC <- adata_meta_PBMC %>% 
-  filter(disease_group_comb == c('control', 'MS'))
+  filter(disease_group_comb %in% c('control', 'MS'))
 
 # # remove Neutrophil (HC) & DC-LAMP+ (MS) because they're present in only one group
 # adata_meta_PBMC <- adata_meta_PBMC %>%
