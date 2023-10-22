@@ -19,7 +19,7 @@ adata_meta <- adata_meta %>%
                               cell_type_2 == 'Microglia', 'Microglia', cell_type))
 
 adata_meta <- adata_meta %>% 
-  filter(cell_type == c('CD4 T cells', 'Microglia'))
+  filter(cell_type  %in% c('CD4 T cells', 'Microglia'))
 #-----------------------------------------------------------------------------------------------
 # # count # of samples per disease group
 # cell_type_counts %>% group_by(disease_group_comb, cell_type) %>%
@@ -28,7 +28,7 @@ adata_meta <- adata_meta %>%
 
 #  subset by organ
 adata_meta_CSF <- adata_meta %>% 
-  filter(organ == 'CSF')
+  filter(organ %in% 'CSF')
 
 adata <- adata_meta_CSF
 organ <- adata$organ
