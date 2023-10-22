@@ -18,7 +18,7 @@ adata_meta <- meta
 #                           'cDC1', 'cDC2_2', 'pDC', 'DC-LAMP+'))
 #  subset by organ
 adata_meta_CSF <- adata_meta %>% 
-  filter(organ == 'CSF')
+  filter(organ %in% 'CSF')
 
 # lst <- list(adata_meta_PBMC)     # adata_meta_CSF
 
