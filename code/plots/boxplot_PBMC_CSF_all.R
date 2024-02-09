@@ -165,7 +165,7 @@ dunn_stat <- cell_type_counts %>%
 # ggplot(cell_type_counts, aes(x = disease_group_comb, y = percent, fill = disease_group_comb))+
 ggboxplot(cell_type_counts, x = 'cell_type', y = 'percent', fill = 'organ') +
   # geom_boxplot() +
-  geom_point(position=position_dodge(width=0.75),
+  geom_point(position=position_dodge(width=0.8),
              aes(fill = organ), colour="black", pch=21) + 
   xlab("Cell type") +
   ylab(paste0("Percentage of all cells")) +
